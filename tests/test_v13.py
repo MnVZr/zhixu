@@ -17,7 +17,7 @@ import journals
 
 class Version13Tests(unittest.TestCase):
     def setUp(self):
-        self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name);self.previous=app.DATA;app.DATA=self.root/'original';app.init()
+        self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name).resolve();self.previous=app.DATA;app.DATA=self.root/'original';app.init()
         self.server=app.ThreadingHTTPServer(('127.0.0.1',0),app.Handler);self.url='http://127.0.0.1:'+str(self.server.server_port)
         threading.Thread(target=self.server.serve_forever,daemon=True).start()
         self.config=patch.object(storage,'config_path',return_value=self.root/'storage.json');self.config.start()
