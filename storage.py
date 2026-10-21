@@ -38,7 +38,7 @@ def validate(path):
     c=sqlite3.connect(file.as_uri()+'?mode=ro',uri=True)
     try:
         if c.execute('PRAGMA quick_check').fetchone()[0]!='ok':raise ValueError('数据库校验失败')
-        if c.execute('PRAGMA user_version').fetchone()[0]>3:raise ValueError('此数据来自较新版本，请使用最新版知序')
+        if c.execute('PRAGMA user_version').fetchone()[0]>4:raise ValueError('此数据来自较新版本，请使用最新版知序')
         tables={x[0] for x in c.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         if not {'days','todos','attachments'}<=tables:raise ValueError('不是知序数据目录')
         for id, in c.execute('SELECT id FROM attachments'):

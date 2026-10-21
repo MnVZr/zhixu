@@ -14,7 +14,7 @@ def migrate(c):
     CREATE TABLE IF NOT EXISTS reminder_events(todo_id TEXT NOT NULL,schedule_key TEXT NOT NULL,created_at TEXT NOT NULL,is_read INTEGER NOT NULL DEFAULT 0,delivered INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(todo_id,schedule_key));
     ''')
     existing = {r['name'] for r in c.execute('PRAGMA table_info(todos)')}
-    for name, definition in {'start_time':"TEXT NOT NULL DEFAULT ''",'end_time':"TEXT NOT NULL DEFAULT ''",'remind':'INTEGER NOT NULL DEFAULT 0','priority':"TEXT NOT NULL DEFAULT 'normal'",'category_id':"TEXT NOT NULL DEFAULT ''",'root_id':"TEXT NOT NULL DEFAULT ''",'origin_date':"TEXT NOT NULL DEFAULT ''"}.items():
+    for name, definition in {'start_time':"TEXT NOT NULL DEFAULT ''",'end_time':"TEXT NOT NULL DEFAULT ''",'remind':'INTEGER NOT NULL DEFAULT 0','priority':"TEXT NOT NULL DEFAULT 'normal'",'category_id':"TEXT NOT NULL DEFAULT ''",'root_id':"TEXT NOT NULL DEFAULT ''",'origin_date':"TEXT NOT NULL DEFAULT ''",'pomodoro':'INTEGER NOT NULL DEFAULT 0'}.items():
         if name not in existing: c.execute(f'ALTER TABLE todos ADD COLUMN {name} {definition}')
     c.execute("UPDATE todos SET root_id=id WHERE root_id=''")
     c.execute("UPDATE todos SET origin_date=date WHERE origin_date=''")
@@ -52,7 +52,7 @@ def save_settings(c,data,now=None):
 
 def validate(c,data,old=None):
     result=dict(old or {})
-    for key in ('text','start_time','end_time','remind','priority','category_id'):
+    for key in ('text','start_time','end_time','remind','priority','category_id','pomodoro'):
         if key in data: result[key]=data[key]
     text=str(result.get('text','')).strip()
     if not text or len(text)>2000: raise ValueError('待办内容需要 1 至 2000 个字符')
@@ -65,25 +65,29 @@ def validate(c,data,old=None):
     if bool(start)!=bool(end) or (start and end<=start): raise ValueError('请填写同一天内完整时段，结束时间需晚于开始时间')
     remind=result.get('remind',False)
     if remind and not start: raise ValueError('请先设置时段，再开启提醒')
+    pomo=result.get('pomodoro',False)
+    if not isinstance(pomo,(bool,int)) or pomo not in (0,1):raise ValueError('番茄钟选项无效')
+    if pomo and not start:raise ValueError('请先设置时段，再加入番茄钟')
     priority=result.get('priority','normal')
     if priority not in ('low','normal','high','urgent'): raise ValueError('无效优先级')
     category=result.get('category_id','')
     if category and not c.execute('SELECT 1 FROM todo_categories WHERE id=?',(category,)).fetchone(): raise ValueError('待办类别不存在')
-    return {'text':text,'start_time':start,'end_time':end,'remind':int(bool(remind)),'priority':priority,'category_id':category}
+    return {'text':text,'start_time':start,'end_time':end,'remind':int(bool(remind)),'priority':priority,'category_id':category,'pomodoro':int(bool(pomo))}
 
 def create(c,data):
     date=data['date'];dt.date.fromisoformat(date)
     fields=validate(c,data);id=uuid.uuid4().hex
     c.execute('''INSERT INTO todos(id,date,text,done,created,start_time,end_time,remind,priority,category_id,root_id,origin_date)
     VALUES(?,?,?,0,?,?,?,?,?,?,?,?)''',(id,date,fields['text'],dt.datetime.now().isoformat(),fields['start_time'],fields['end_time'],fields['remind'],fields['priority'],fields['category_id'],id,date))
+    c.execute('UPDATE todos SET pomodoro=? WHERE id=?',(fields['pomodoro'],id))
     return id
 
 def update(c,data):
     old=c.execute('SELECT * FROM todos WHERE id=?',(data['id'],)).fetchone()
     if not old: raise ValueError('待办事项不存在')
-    if any(k in data for k in ('text','start_time','end_time','remind','priority','category_id')):
+    if any(k in data for k in ('text','start_time','end_time','remind','priority','category_id','pomodoro')):
         fields=validate(c,data,old)
-        c.execute('UPDATE todos SET text=:text,start_time=:start_time,end_time=:end_time,remind=:remind,priority=:priority,category_id=:category_id WHERE id=:id',{**fields,'id':data['id']})
+        c.execute('UPDATE todos SET text=:text,start_time=:start_time,end_time=:end_time,remind=:remind,priority=:priority,category_id=:category_id,pomodoro=:pomodoro WHERE id=:id',{**fields,'id':data['id']})
         if any(fields[k]!=old[k] for k in ('start_time','end_time','remind')):
             c.execute('UPDATE reminder_events SET is_read=1 WHERE todo_id=?',(data['id'],))
     if 'done' in data: c.execute('UPDATE todos SET done=? WHERE id=?',(int(bool(data['done'])),data['id']))
@@ -102,6 +106,7 @@ def tick(c,now=None):
             for row in rows:
                 c.execute('''INSERT OR IGNORE INTO todos(id,date,text,done,created,start_time,end_time,remind,priority,category_id,root_id,origin_date)
                 VALUES(?,?,?,0,?,?,?,?,?,?,?,?)''',(uuid.uuid4().hex,target.isoformat(),row['text'],now.isoformat(),row['start_time'],row['end_time'],row['remind'],row['priority'],row['category_id'],row['root_id'],row['origin_date']))
+                c.execute('UPDATE todos SET pomodoro=? WHERE date=? AND root_id=?',(row['pomodoro'],target.isoformat(),row['root_id']))
             cursor=target
         put(c,'rollover_cursor',today.isoformat())
     for row in c.execute('SELECT * FROM todos WHERE date=? AND done=0 AND remind=1 AND start_time!=\'\'',(today.isoformat(),)):

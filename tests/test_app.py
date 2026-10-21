@@ -152,7 +152,7 @@ class JournalTests(unittest.TestCase):
                 with app.connect() as c:
                     self.assertEqual(c.execute('SELECT body FROM days').fetchone()[0],'<b>旧内容</b>')
                     self.assertEqual(c.execute('SELECT journal_visible FROM attachments').fetchone()[0],1)
-                    self.assertEqual(c.execute('PRAGMA user_version').fetchone()[0],3)
+                    self.assertEqual(c.execute('PRAGMA user_version').fetchone()[0],4)
                 self.assertEqual(len(list((app.DATA/'upgrade-backups').glob('*.db'))),1)
             finally: app.DATA=old
 
