@@ -22,6 +22,7 @@ import desktop
 import storage
 import journals
 import pomodoro
+import annotations
 
 ROOT = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
 ASSETS = Path(getattr(sys, '_MEIPASS', ROOT)) / 'web'
@@ -60,9 +61,9 @@ def init():
     # SQLite's backup API keeps existing journals intact before upgrading the schema.
     if (DATA / 'journal.db').exists():
         with connect() as c:
-            if c.execute('PRAGMA user_version').fetchone()[0] < 4:
+            if c.execute('PRAGMA user_version').fetchone()[0] < 5:
                 folder = DATA / 'upgrade-backups'; folder.mkdir(exist_ok=True)
-                destination = sqlite3.connect(folder / ('before-1.4-' + dt.datetime.now().strftime('%Y%m%d-%H%M%S-%f') + '.db'))
+                destination = sqlite3.connect(folder / ('before-1.45-' + dt.datetime.now().strftime('%Y%m%d-%H%M%S-%f') + '.db'))
                 try: c.backup(destination)
                 finally: destination.close()
     with connect() as c:
@@ -89,7 +90,8 @@ def init():
         journals.migrate(c)
         if 'caption_style' not in {x['name'] for x in c.execute('PRAGMA table_info(attachments)')}:c.execute("ALTER TABLE attachments ADD COLUMN caption_style TEXT NOT NULL DEFAULT '{}'")
         pomodoro.migrate(c)
-        c.execute('PRAGMA user_version=4')
+        annotations.migrate(c)
+        c.execute('PRAGMA user_version=5')
 
 def task_tick(now=None):
     with connect() as c:
@@ -164,6 +166,7 @@ def gallery_change(c, path, data):
         if Path(name).suffix.lower()!=suffix.lower():
             if Path(name).suffix.lower() in ('.jpg','.jpeg','.png','.gif','.webp','.mp4'): raise ValueError('不能更改媒体类型')
             name+=suffix
+        note=annotations.update(c,row,data,note,media_style)
         if 'caption_style' in data:
             style=media_style(data['caption_style'])
             c.execute('UPDATE attachments SET caption_style=? WHERE id=?',(json.dumps(style),row['id']))
@@ -194,8 +197,13 @@ def gallery_change(c, path, data):
         if data.get('id'):
             require_album(c, id)
             c.execute('UPDATE albums SET name=?,category_id=? WHERE id=?', (name, category, id))
-        else: c.execute('INSERT INTO albums VALUES(?,?,?,?)', (id, name, category, dt.datetime.now().isoformat()))
+        else: c.execute('INSERT INTO albums(id,name,category_id,created) VALUES(?,?,?,?)', (id, name, category, dt.datetime.now().isoformat()))
         return {'ok': True, 'id': id}
+    elif path == '/api/album/cover':
+        require_album(c,data['album_id'])
+        cover=data.get('attachment_id','')
+        if cover and not c.execute("SELECT 1 FROM attachments t JOIN album_items i ON t.id=i.attachment_id WHERE i.album_id=? AND t.id=? AND t.mime LIKE 'image/%'",(data['album_id'],cover)).fetchone():raise ValueError('请选择此相册中的图片')
+        c.execute('UPDATE albums SET cover_id=? WHERE id=?',(cover,data['album_id']))
     elif path == '/api/album/delete':
         require_album(c, data['id'])
         c.execute('DELETE FROM album_items WHERE album_id=?', (data['id'],))
@@ -248,10 +256,17 @@ class Handler(BaseHTTPRequestHandler):
     def get_locked(self):
         p = urlparse(self.path)
         q = parse_qs(p.query)
-        if p.path == '/api/pomodoro':
+        if p.path == '/api/ui-state':
+            with connect() as c:self.reply({'position':tasks.value(c,'clock_position',None)})
+        elif p.path == '/api/day-context':
+            date=q.get('date',[''])[0];dt.date.fromisoformat(date)
+            with connect() as c:
+                row=c.execute('SELECT * FROM day_context WHERE date=?',(date,)).fetchone()
+                self.reply(dict(row) if row else {'date':date,'mood':'','weather':''})
+        elif p.path == '/api/pomodoro':
             with connect() as c:self.reply(pomodoro.status(c))
         elif p.path == '/api/storage':
-            self.reply({'path':str(DATA),'version':4})
+            self.reply({'path':str(DATA),'version':5})
         elif p.path == '/api/export':
             kind=q.get('kind',['journals'])[0]
             with connect() as c: payload=storage.export(c,DATA,kind)
@@ -281,8 +296,8 @@ class Handler(BaseHTTPRequestHandler):
             with connect() as c:
                 self.reply({'categories': [dict(x) for x in c.execute('SELECT * FROM categories ORDER BY name')],
                     'albums': [dict(x) for x in c.execute('''SELECT a.*, (SELECT count(*) FROM album_items i WHERE i.album_id=a.id) AS count,
-                    (SELECT attachment_id FROM album_items i WHERE i.album_id=a.id ORDER BY rowid LIMIT 1) AS cover,
-                    (SELECT mime FROM attachments t JOIN album_items i ON t.id=i.attachment_id WHERE i.album_id=a.id ORDER BY i.rowid LIMIT 1) AS cover_mime
+                    COALESCE((SELECT attachment_id FROM album_items i WHERE i.album_id=a.id AND i.attachment_id=a.cover_id),(SELECT attachment_id FROM album_items i WHERE i.album_id=a.id ORDER BY rowid LIMIT 1)) AS cover,
+                    COALESCE((SELECT mime FROM attachments t JOIN album_items i ON t.id=i.attachment_id WHERE i.album_id=a.id AND t.id=a.cover_id),(SELECT mime FROM attachments t JOIN album_items i ON t.id=i.attachment_id WHERE i.album_id=a.id ORDER BY i.rowid LIMIT 1)) AS cover_mime
                     FROM albums a ORDER BY created DESC''')]})
         elif p.path == '/api/album':
             with connect() as c:
@@ -301,7 +316,7 @@ class Handler(BaseHTTPRequestHandler):
                     SELECT '',date,'','','' FROM todos WHERE date NOT IN (SELECT date FROM entries) GROUP BY date) d
                     ORDER BY d.date DESC,d.created DESC,d.id DESC''')])
         elif p.path == '/api/info':
-            self.reply({'token': TOKEN, 'data': str(DATA), 'version': '1.4.0'})
+            self.reply({'token': TOKEN, 'data': str(DATA), 'version': '1.45.0'})
         elif p.path == '/api/backup':
             buffer = io.BytesIO()
             with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as z:
@@ -353,7 +368,7 @@ class Handler(BaseHTTPRequestHandler):
                     chunk = f.read(min(left, 1024*1024))
                     if not chunk: break
                     self.wfile.write(chunk); left -= len(chunk)
-        elif p.path in ('/', '/app.js', '/style.css', '/gallery.css', '/v11.js', '/v11.css', '/v12.js', '/v12.css', '/zhixu.ico', '/v13.js', '/v13.css', '/v135.js', '/v135.css', '/v14.js', '/v14.css'):
+        elif p.path in ('/', '/app.js', '/style.css', '/gallery.css', '/v11.js', '/v11.css', '/v12.js', '/v12.css', '/zhixu.ico', '/v13.js', '/v13.css', '/v135.js', '/v135.css', '/v14.js', '/v145.js', '/v14.css', '/v145.css'):
             name = 'index.html' if p.path == '/' else p.path[1:]
             self.reply((ASSETS / name).read_bytes(), mime=('text/javascript; charset=utf-8' if name.endswith('.js') else 'text/css; charset=utf-8' if name.endswith('.css') else 'image/x-icon' if name.endswith('.ico') else 'text/html; charset=utf-8'))
         else:
@@ -432,7 +447,16 @@ class Handler(BaseHTTPRequestHandler):
                     # Commit before sending the response: subsequent UI requests see the change.
                     c.commit()
                     return self.reply(result)
-                if p.path == '/api/pomodoro':
+                if p.path == '/api/ui-state':
+                    pos=data.get('position')
+                    if not isinstance(pos,dict) or any(not isinstance(pos.get(k),(int,float)) or not 0<=pos[k]<=1 for k in ('x','y')):raise ValueError('位置无效')
+                    tasks.put(c,'clock_position',{k:pos[k] for k in ('x','y')});c.commit();self.reply({'ok':True});return
+                elif p.path == '/api/day-context':
+                    date=data['date'];dt.date.fromisoformat(date)
+                    mood=data.get('mood','');weather=data.get('weather','')
+                    if mood not in ('','开心','平静','一般','低落','疲惫') or weather not in ('','晴','多云','阴','雨','雪','风'):raise ValueError('请选择有效的心情和天气')
+                    c.execute('INSERT INTO day_context VALUES(?,?,?) ON CONFLICT(date) DO UPDATE SET mood=excluded.mood,weather=excluded.weather',(date,mood,weather));c.commit();self.reply({'ok':True});return
+                elif p.path == '/api/pomodoro':
                     result=pomodoro.command(c,data);c.commit();return self.reply(result)
                 elif p.path == '/api/entry/save':
                     id=journals.save(c,data);c.commit();return self.reply({'ok':True,'id':id})
@@ -487,7 +511,7 @@ def switch_storage(target,mode):
         DATA=target
         init()
         storage.remember(ROOT,target)
-        if SERVICE_URL:(DATA/'runtime.json').write_text(json.dumps({'url':SERVICE_URL,'pid':os.getpid(),'version':'1.4.0'}),encoding='utf-8')
+        if SERVICE_URL:(DATA/'runtime.json').write_text(json.dumps({'url':SERVICE_URL,'pid':os.getpid(),'version':'1.45.0'}),encoding='utf-8')
     except Exception:
         DATA=previous;guard.__exit__(None,None,None);raise
     if INSTANCE:INSTANCE.close();INSTANCE=None
@@ -506,7 +530,7 @@ def main():
     server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
     url = f'http://127.0.0.1:{server.server_port}/'
     SERVICE_URL=url
-    (DATA / 'runtime.json').write_text(json.dumps({'url': url, 'pid': os.getpid(), 'version': '1.4.0'}), encoding='utf-8')
+    (DATA / 'runtime.json').write_text(json.dumps({'url': url, 'pid': os.getpid(), 'version': '1.45.0'}), encoding='utf-8')
     threading.Thread(target=server.serve_forever, daemon=True).start()
     headless='--serve' in sys.argv
     if not headless or '--native-test' in sys.argv:

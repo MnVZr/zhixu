@@ -54,7 +54,7 @@ def brand_windows(url):
     @callback_type
     def visit(hwnd,_):
         title=ct.create_unicode_buffer(512);user.GetWindowTextW(hwnd,title,512)
-        if title.value.startswith('知序 1.4') and user.IsWindowVisible(hwnd):
+        if title.value.startswith('知序 1.45') and user.IsWindowVisible(hwnd):
             user.SendMessageW(hwnd,0x80,0,icon);user.SendMessageW(hwnd,0x80,1,icon)
             if hwnd not in seen:identity(hwnd);seen.add(hwnd)
         return True
@@ -109,7 +109,7 @@ def start_tray(assets,url,stop_event):
         def _create_window(self,atom):
             # This app runs as the current user; no elevated-message filter is needed.
             return win32.CreateWindowEx(0,atom,None,win32.WS_POPUP,0,0,0,0,0,None,win32.GetModuleHandle(None),None)
-    icon=LocalUserIcon('Zhixu',Image.open(assets/'zhixu.ico'),'知序 1.4 · 让生活更有序',pystray.Menu(
+    icon=LocalUserIcon('Zhixu',Image.open(assets/'zhixu.ico'),'知序 1.45 · 让生活更有序',pystray.Menu(
         pystray.MenuItem('打开知序',lambda icon,item:launch_window(url),default=True),
         pystray.MenuItem('退出知序（停止提醒和顺延）',exit_app)))
     # Child threads inherit daemon status, so a failed shell integration cannot

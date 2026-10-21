@@ -5,7 +5,7 @@ import re
 import uuid
 
 COLORS = ('#4c8c78', '#5986c1', '#c4914d', '#a477bd', '#c46e78', '#7b8a92')
-DEFAULTS = {'rollover_enabled': False, 'background_enabled': True, 'reminder_sound': True, 'font_size': 'standard', 'theme': '#2f6859', 'task_sort': 'priority', 'default_priority': 'normal', 'hide_completed': False, 'show_stats': True, 'show_inspiration': False}
+DEFAULTS = {'rollover_enabled': False, 'background_enabled': True, 'reminder_sound': True, 'font_size': 'standard', 'theme': '#2f6859', 'task_sort': 'priority', 'default_priority': 'normal', 'hide_completed': False, 'show_mood': False, 'show_weather': False, 'show_stats': True, 'show_inspiration': False}
 
 def migrate(c):
     c.executescript('''
