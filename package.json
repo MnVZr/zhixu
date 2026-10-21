@@ -1,0 +1,7 @@
+{
+  "name": "zhixu-offline-ui-tests",
+  "private": true,
+  "version": "1.3.0",
+  "scripts": { "test": "node tests/ui_offline.cjs" },
+  "devDependencies": { "jsdom": "30.1.3" }
+}

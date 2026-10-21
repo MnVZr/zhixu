@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>知序 1.3 · 日常记录</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/gallery.css"><link rel="stylesheet" href="/v11.css"><link rel="icon" href="/zhixu.ico" type="image/x-icon"><link rel="stylesheet" href="/v12.css"><link rel="stylesheet" href="/v13.css"></head>
+<body>
+<aside class="sidebar">
+ <a class="brand" href="/"><span class="brand-mark">知</span><span>知序<small>ZHIXU · DAILY NOTES</small></span></a>
+ <div class="intro">记录日常，整理生活。</div>
+ <button id="today" class="nav active">◈ <span>今日手记</span><span class="arrow">↗</span></button>
+ <button id="galleryNav" class="nav">▧ <span>相册集</span><span class="arrow">↗</span></button>
+ <button id="settingsNav" class="nav">⚙ <span>设置</span><span class="arrow">↗</span></button>
+ <div class="section-label">日历 / CALENDAR</div>
+ <div class="month-nav"><button id="prevMonth" aria-label="上个月">‹</button><strong id="monthLabel"></strong><button id="nextMonth" aria-label="下个月">›</button></div>
+ <div class="weekdays"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>
+ <div id="calendar" class="calendar"></div>
+ <div class="section-label history-label">过往记录 / ARCHIVE</div>
+ <input id="search" class="search" placeholder="搜索日志标题或日期…" aria-label="搜索记录">
+ <div id="history" class="history"></div>
+ <div class="sidebar-footer"><span class="local-dot"></span> 数据仅保存在本机<button id="backup" title="下载包含所有日志和附件的 ZIP 备份">备份 ↗</button></div>
+</aside>
+<main>
+ <header><div>我的记录 <span>/</span> <span id="breadcrumb">每日手记</span></div><span class="version">知序 1.3</span></header>
+ <nav class="mobile-tabs"><button id="mobileJournal" class="active">每日手记</button><button id="mobileGallery">相册集</button><button id="mobileSettings">设置</button></nav>
+ <section id="reminderPanel" class="reminder-panel" role="region" aria-label="待办提醒" hidden></section>
+ <div id="journalView">
+ <section class="page-heading"><div><div id="dateCaption" class="eyebrow"></div><h1>每一小步，皆有回响<span>。</span></h1><p>记录思考的线索，收藏成长的瞬间。</p></div><div class="date-picker"><label for="dateInput">当前手记</label><input type="date" id="dateInput"></div></section>
+ <section class="stats"><div><span class="stat-icon">▤</span><div><strong id="wordCount">0</strong><span>今日记录字数</span></div></div><div><span class="stat-icon">✓</span><div><strong id="todoCount">0 / 0</strong><span>已完成待办</span></div></div><div><span class="stat-icon">⌁</span><div><strong id="attachmentCount">0</strong><span>已收藏附件</span></div></div><div class="quote">把好奇心，写进日常。<small>STAY CURIOUS. KEEP GROWING.</small></div></section>
+ <div class="workspace">
+  <section class="journal card"><div class="card-header"><h2><span>01</span> 日志</h2><span id="saveState" role="status">已就绪</span></div>
+   <input id="title" maxlength="300" class="title-input" placeholder="今天的标题…" aria-label="日志标题">
+   <div class="toolbar" role="toolbar" aria-label="编辑工具"><button data-cmd="bold" aria-pressed="false" aria-label="粗体" title="粗体 (Ctrl+B)"><b>B</b></button><button data-cmd="italic" aria-pressed="false" aria-label="斜体" title="斜体 (Ctrl+I)"><i>I</i></button><button data-cmd="underline" aria-pressed="false" aria-label="下划线" title="下划线 (Ctrl+U)"><u>U</u></button><span></span><button data-cmd="insertUnorderedList" aria-pressed="false" aria-label="项目列表" title="项目列表">☷</button><button data-cmd="insertOrderedList" aria-pressed="false" aria-label="编号列表" title="编号列表">1.</button><button id="insertHeading" aria-pressed="false" aria-label="小标题" title="小标题 / 正文">H₂</button><button id="clearFormat" aria-label="清除格式" title="清除所选文字格式">Tₓ</button><button id="template" class="template">＋ 日志模板</button></div>
+   <div id="formatHint" class="format-hint" role="status">正文 · 点击工具切换格式，深色表示已启用</div>
+   <div id="editor" contenteditable="true" role="textbox" aria-label="日志正文" aria-multiline="true" data-placeholder="记录今天的事情、想法与心情…"></div>
+   <div class="attachments-heading"><h3>附件收藏 <span id="fileBadge">0</span></h3><button id="addFiles">＋ 添加文件</button><input id="fileInput" type="file" multiple hidden></div>
+   <div class="upload-options"><label><input type="checkbox" id="syncAlbum"> 新导入的图片 / 视频同时加入相册</label><select id="uploadAlbum" aria-label="同步加入的相册" disabled><option value="">请先创建相册</option></select></div>
+   <div id="dropzone"><span>↥</span> 拖拽文件到这里，或点击添加<small>图片、MP4 视频及其他常规文件 · 单个文件最大 1 GB</small></div>
+   <div id="attachments" class="attachments"></div>
+   <div class="journal-footer"><span>✧ 思考值得被记录</span><span>编辑后自动保存</span></div>
+  </section>
+  <aside class="right-column"><section class="card todo-card"><div class="card-header"><h2><span>02</span> 每日待办</h2><span id="todoPercent">0%</span></div><div class="progress"><div id="progressBar"></div></div><p class="todo-subtitle">给今天一点清晰的方向。</p><form id="todoForm"><input id="todoInput" maxlength="2000" placeholder="添加一个小目标…" aria-label="新待办事项"><button title="添加待办">＋</button></form><button id="newTodoDetails" class="task-options-button">＋ 时段 · 提醒 · 优先级</button><div id="todos"></div><div id="todoEmpty" class="todo-empty"><span>✓</span><p>从一个小目标开始</p><small>完成后勾选，让进步看得见。</small></div><div class="todo-note">一步一步，靠近想去的地方。</div></section><section class="note-card"><span>✦</span><h3>留一点空间给灵感</h3><p>一个问题，一次尝试，一段阅读。<br>微小的积累，也会长成答案。</p><div>YOUR IDEAS MATTER</div></section><button id="help" class="help">ⓘ 使用说明与数据位置</button></aside>
+ </div>
+ </div>
+ <section id="galleryView" hidden>
+  <div class="page-heading"><div><div class="eyebrow">VISUAL COLLECTION / 相册集</div><h1>收藏每一个瞬间<span>。</span></h1><p>按分类整理照片与视频，让画面与思考相连。</p></div><div class="gallery-actions"><button id="manageCategories" class="secondary">管理分类</button><button id="newAlbum" class="primary">＋ 新建相册</button></div></div>
+  <div class="gallery-filters"><input id="albumSearch" type="search" placeholder="搜索相册名称…" aria-label="搜索相册"><select id="categoryFilter" aria-label="按分类筛选"><option value="all">全部分类</option></select><span id="albumSummary"></span></div>
+  <div id="albumGrid" class="album-grid"></div>
+  <div id="albumEmpty" class="large-empty" hidden><span>▧</span><h3>把值得记住的画面放进相册</h3><p>创建第一个相册，导入照片或 MP4 视频。</p><button id="emptyNewAlbum" class="primary">＋ 新建相册</button></div>
+  <section id="albumDetail" hidden>
+   <div class="album-detail-head"><button id="backAlbums" class="secondary">← 全部相册</button><div><h2 id="albumTitle"></h2><p id="albumMeta"></p></div><button id="editAlbum" class="secondary">编辑相册</button><button id="deleteAlbum" class="danger">删除相册</button></div>
+   <div class="gallery-filters"><input id="mediaSearch" type="search" placeholder="搜索文件名、日志标题或日期…" aria-label="搜索相册内容"><select id="mediaType" aria-label="筛选媒体类型"><option value="all">图片和视频</option><option value="image">仅图片</option><option value="video">仅视频</option></select><select id="mediaSort" aria-label="相册内容排序"><option value="time_desc">按时间</option><option value="size_desc">按大小</option><option value="name_asc">按名称</option></select><button id="importMedia" class="primary">＋ 导入图片 / 视频</button><input id="albumFileInput" type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4" multiple hidden></div>
+   <div id="albumDrop" class="album-drop" tabindex="0" role="button">拖入照片或 MP4 视频，或点击导入 · 单个文件最大 1 GB</div>
+   <div id="mediaGrid" class="media-grid"></div><p id="mediaEmpty" class="large-empty" hidden>相册里还没有内容。可直接导入，也可从日志附件点击“加入相册”。</p>
+  </section>
+ </section>
+ <section id="settingsView" hidden>
+  <div class="page-heading"><div><div class="eyebrow">PREFERENCES / 我的设置</div><h1>让日常，更合心意<span>。</span></h1><p>提醒、顺延与待办分类，都由你决定。</p></div></div>
+  <div class="settings-grid"><section class="card settings-card"><h2>待办与后台</h2><form id="settingsForm">
+   <label class="setting-row"><span><strong>未完成待办自动顺延</strong><small>次日零点复制未完成事项，保留原设置；关机期间下次启动补齐。</small></span><input id="rolloverEnabled" type="checkbox"></label>
+   <label class="setting-row"><span><strong>关闭窗口后保留后台</strong><small>关闭窗口后继续提醒。关闭此项后，无窗口约两分钟退出。</small></span><input id="backgroundEnabled" type="checkbox"></label>
+   <label class="setting-row"><span><strong>提醒提示音</strong><small>提醒时播放声音。</small></span><input id="reminderSound" type="checkbox"></label>
+   <p id="nativeStatus" class="subtle"></p><p class="settings-note">提醒需后台运行；休眠或勿扰可能影响通知，过期不补发。</p>
+   <button class="primary">保存设置</button></form>
+  </section><section class="card settings-card"><h2>待办类别与颜色</h2><p class="subtle">类别使用色签，优先级使用待办背景色。</p><form id="todoCategoryForm" class="inline-form"><input id="todoCategoryName" maxlength="40" required placeholder="新类别名称" aria-label="新待办类别名称"><input id="todoCategoryColor" type="color" value="#4c8c78" aria-label="新待办类别颜色" list="classicColors"><button class="primary">添加</button></form><div id="todoCategoryList"></div></section></div>
+  <section class="card settings-card app-info"><h2>知序 1.3</h2><p>所有日志、待办、设置和相册信息保存在本机。升级前数据库备份在 data/upgrade-backups 中。</p><button id="quitApp" class="danger">退出知序与后台</button><span id="quitStatus" role="status"></span></section>
+ </section>
+ <footer>知序 · 记录每一天。</footer>
+</main>
+<div id="toast" role="status"></div>
+<dialog id="helpDialog"><h2>欢迎使用知序 1.3</h2><p>选择日期后，可以编辑当日日志和待办。正文支持粗体、斜体、下划线、列表及小标题；深色工具按钮表示当前格式已启用。可从剪贴板粘贴图片，或拖入文件。</p><p>相册集支持新建、编辑、删除相册，管理分类，以及搜索相册和媒体。日志附件可点击“加入相册”，或勾选同步导入。打开相册里的图片 / 视频，可查看关联日志并跳转。直接导入相册的媒体没有关联日志。</p><p>从相册移除内容或删除相册，不会删除日志中的附件；从日志移除已入相册的附件，也会保留相册内容。移除的独立导入内容暂时保留在本地数据中，便于后续备份，不提供自动清理。</p><p>日志在停止输入约半秒后自动保存，Ctrl+S 可立即保存。待办可双击编辑。数据位置：<code id="dataPath"></code></p><p>备份包含全部日志、相册、分类和附件。恢复前请在设置中“退出知序与后台”，再将备份 ZIP 内的 data 文件夹放在 EXE 旁。编辑器完全本地运行，没有使用 WPS 小助手或外部编辑插件。</p><button id="closeHelp" class="primary">开始记录</button></dialog>
+<dialog id="albumDialog"><form id="albumForm"><h2 id="albumFormTitle">新建相册</h2><label class="field-label">相册名称<input id="albumName" required maxlength="100" placeholder="例如：旅行、生活" autocomplete="off"></label><label class="field-label">所属分类<select id="albumCategory"></select></label><div class="dialog-actions"><button type="button" id="cancelAlbum" class="secondary">取消</button><button class="primary">保存相册</button></div></form></dialog>
+<dialog id="categoryDialog"><h2>管理分类</h2><p>删除分类后，其中的相册将移至“未分类”。</p><form id="categoryForm" class="inline-form"><input id="categoryName" required maxlength="100" placeholder="新分类名称" aria-label="新分类名称"><button class="primary">添加</button></form><div id="categoryList"></div><div class="dialog-actions"><button id="closeCategories" class="secondary">完成</button></div></dialog>
+<dialog id="addToAlbumDialog"><form id="addToAlbumForm"><h2>加入相册</h2><p>同一张图片或视频可以加入多个相册，不重复复制文件。</p><label class="field-label">选择相册<select id="targetAlbum" required></select></label><p id="noAlbumsHint" hidden>还没有相册，先创建一个就能收藏。</p><div class="dialog-actions"><button type="button" id="cancelAddToAlbum" class="secondary">取消</button><button type="button" id="createAlbumFromAttachment" class="secondary">＋ 新建相册</button><button id="confirmAddToAlbum" class="primary">加入</button></div></form></dialog>
+<dialog id="mediaDialog" class="media-dialog"><div class="media-dialog-head"><h2 id="mediaTitle"></h2><button id="closeMedia" class="secondary" aria-label="关闭预览">✕</button></div><div id="mediaPreview"></div><div class="media-nav"><button id="previousMedia" class="secondary">← 上一个</button><span id="mediaPosition"></span><button id="nextMedia" class="secondary">下一个 →</button></div><form id="mediaInfoForm" class="media-info-form"><p id="mediaImported" class="subtle"></p><label class="field-label">文件名称<input id="mediaRename" maxlength="240" required></label><label class="field-label">内容批注<textarea id="mediaAnnotation" maxlength="10000" rows="3" placeholder="记录画面中的发现、参数或想法…"></textarea></label><div class="media-meta-actions"><small>名称和批注会同步到此文件所在的其他相册及日志附件。</small><button class="primary">保存信息</button></div></form><div id="journalLink" class="linked-journal"></div><div class="dialog-actions"><a id="downloadMedia" class="secondary">下载原文件</a><button id="removeMedia" class="danger">从此相册移除</button></div></dialog>
+<dialog id="todoDialog"><form id="todoEditForm"><h2 id="todoDialogTitle">新建待办</h2><label class="field-label">待办内容<input id="todoText" required maxlength="2000" placeholder="今天计划完成什么？"></label><div class="task-field-grid"><label class="field-label">优先级<select id="todoPriority"><option value="low">低优先级</option><option value="normal" selected>普通</option><option value="high">高优先级</option><option value="urgent">紧急</option></select></label><label class="field-label">类别<select id="todoCategory"></select></label></div><label class="checkbox-line"><input id="todoHasTime" type="checkbox"> 设置待办时段（可选）</label><div id="todoTimeFields" class="task-field-grid" hidden><label class="field-label">开始时间<input id="todoStart" type="time"></label><label class="field-label">结束时间<input id="todoEnd" type="time"></label></div><label class="checkbox-line"><input id="todoRemind" type="checkbox" disabled> 时段开始时提醒我</label><p class="subtle">时段和提醒均可选。</p><div class="dialog-actions"><button id="cancelTodoEdit" type="button" class="secondary">取消</button><button class="primary">保存待办</button></div></form></dialog>
+<script src="/app.js"></script><script src="/v11.js"></script><script src="/v12.js"></script><script src="/v13.js"></script><datalist id="classicColors"><option value="#4c8c78"><option value="#5986c1"><option value="#c4914d"><option value="#a477bd"><option value="#c46e78"><option value="#7b8a92"></datalist></body></html>
