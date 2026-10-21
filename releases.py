@@ -14,16 +14,24 @@ NOTES['2026-10-21'].append(('知序版本归档 · 1.2','<p>改善小窗口与�
 
 NOTES['2026-10-21'].append(('知序版本归档 · 1.3','<p>相册排序精简为按时间、大小、名称并独立切换方向。新增主题色，移除界面密度。支持迁移或打开数据目录、导入旧版备份、导出日志文本与相册。媒体预览优先展示，支持缩放、图注开关与折叠编辑；重命名自动补齐后缀，界面隐藏后缀。日志支持一天多篇、纵向展示与折叠，图片和视频可直接插入正文、添加图注并关联相册。升级前自动备份，保留旧数据，准备 GitHub 项目和下载使用文档。</p>'))
 
+NOTES['2026-10-21'].append(('知序版本归档 · 1.35','<p>修复多篇日志的历史检索：每篇独立显示，支持标题、正文和日期搜索，并可直接定位。修复历史记录与备份区域重叠，历史列表独立滚动。主题色覆盖背景、侧栏、卡片、表单和图标等整体界面。设置有未保存更改时，离开前可选择保存、放弃或继续编辑。保留旧数据与备份兼容，并更新 GitHub 源码和 Windows 下载包。</p>'))
+
 def append_updates(c):
     for date,sections in NOTES.items():
-        row=c.execute('SELECT title,body FROM days WHERE date=?',(date,)).fetchone()
+        has_entries=c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='entries'").fetchone()
+        target=c.execute('SELECT id,title,body FROM entries WHERE date=? AND title=? ORDER BY created,id LIMIT 1',(date,'知序 · 版本更新归档')).fetchone() if has_entries else None
+        row=target or c.execute('SELECT title,body FROM days WHERE date=?',(date,)).fetchone()
         title=row['title'] if row and row['title'] else '知序 · 版本更新归档'
         body=row['body'] if row else ''
         for heading,text in sections:
             if heading not in body:
                 body+=('<p><br></p>' if body else '')+'<h3>'+heading+'</h3>'+text
         if c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='entries'").fetchone():
-            first=c.execute('SELECT id FROM entries WHERE date=? ORDER BY created,id LIMIT 1',(date,)).fetchone()
+            first=target or c.execute('SELECT id FROM entries WHERE date=? ORDER BY created,id LIMIT 1',(date,)).fetchone()
             if first:c.execute('UPDATE entries SET title=?,body=?,updated=? WHERE id=?',(title,body,dt.datetime.now().isoformat(),first['id']))
         c.execute('INSERT INTO days(date,title,body,updated) VALUES(?,?,?,?) ON CONFLICT(date) DO UPDATE SET title=excluded.title,body=excluded.body,updated=excluded.updated',
                   (date,title,body,dt.datetime.now().isoformat()))
+        if has_entries:
+            import journals
+            journals.sync_day(c,date)
+

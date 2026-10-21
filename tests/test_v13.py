@@ -29,6 +29,26 @@ class Version13Tests(unittest.TestCase):
         body=data if isinstance(data,bytes) else json.dumps(data).encode() if data is not None else None
         with request.urlopen(request.Request(self.url+path,body,{'X-Zhixu-Token':app.TOKEN})) as response:
             value=response.read();return json.loads(value) if 'json' in response.headers['Content-Type'] else value
+    def test_v135_history_contains_each_entry_and_renames(self):
+        day='2026-10-21'
+        ids=[self.api('/api/entry/save',{'date':day,'title':'第一篇' if i==0 else '第二篇','body':'<p>独立正文'+str(i)+'</p>'})['id'] for i in range(2)]
+        self.api('/api/todo',{'date':'2026-10-20','text':'仅待办日期'})
+        history=self.api('/api/history')
+        rows=[x for x in history if x['date']==day]
+        self.assertEqual({x['id'] for x in rows},set(ids));self.assertEqual({x['title'] for x in rows},{'第一篇','第二篇'})
+        self.assertTrue(any('独立正文1' in x['body'] for x in rows))
+        self.assertEqual(len([x for x in history if x['date']=='2026-10-20']),1)
+        self.api('/api/entry/save',{'id':ids[1],'date':day,'title':'第二篇改名','body':'<p>更新内容</p>'})
+        self.assertIn('第二篇改名',[x['title'] for x in self.api('/api/history')])
+    def test_v135_archive_targets_named_entry_without_overwriting_first(self):
+        import releases
+        self.api('/api/entry/save',{'date':'2026-10-21','title':'当天第一篇','body':'<p>保留我的正文</p>'})
+        target=self.api('/api/entry/save',{'date':'2026-10-21','title':'知序 · 版本更新归档','body':'<p>已有归档</p>'})['id']
+        with app.connect() as c:releases.append_updates(c);releases.append_updates(c)
+        rows=self.api('/api/entries?date=2026-10-21')['entries']
+        self.assertEqual(rows[0]['title'],'当天第一篇');self.assertEqual(rows[0]['body'],'<p>保留我的正文</p>')
+        entry=next(x for x in rows if x['id']==target)
+        self.assertTrue(entry['body'].startswith('<p>已有归档</p>'));self.assertEqual(entry['body'].count('知序版本归档 · 1.35'),1)
     def test_multi_entry_inline_media_and_export(self):
         one=self.api('/api/entry/save',{'date':'2026-10-21','title':'第一篇','body':'<p>早晨</p>'})['id']
         two=self.api('/api/entry/save',{'date':'2026-10-21','title':'第二篇','body':'<p>晚上</p>'})['id']

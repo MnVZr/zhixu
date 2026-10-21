@@ -4,7 +4,7 @@ import hashlib
 import zipfile
 ROOT=Path(__file__).parent
 def main():
-    output=ROOT/'Zhixu-1.3.0-Windows-x64.zip'
+    output=ROOT/'Zhixu-1.35.0-Windows-x64.zip'
     with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED) as z:
         z.write(ROOT/'release/知序.exe','知序.exe')
         for name in ('README.md','LICENSE','CHANGELOG.md','THIRD_PARTY.md'):z.write(ROOT/name,name)

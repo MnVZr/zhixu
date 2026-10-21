@@ -7,7 +7,7 @@
 ## 下载与使用
 
 1. 打开 [最新版本下载](https://github.com/MnVZr/zhixu/releases/latest)。
-2. 在 **Assets** 下载 `Zhixu-1.3.0-Windows-x64.zip`。`Source code` 是源码，普通用户不需要下载。
+2. 在 **Assets** 下载 `Zhixu-1.35.0-Windows-x64.zip`。`Source code` 是源码，普通用户不需要下载。
 3. 完整解压到可写入的文件夹，双击 **知序.exe**，无需安装 Python。
 
 支持 Windows 10/11 64 位，推荐系统自带的 Microsoft Edge。知序以独立应用窗口打开，缺少 Edge 时使用默认浏览器。请不要直接在压缩包中运行。
@@ -69,7 +69,7 @@ python app.py
 powershell -ExecutionPolicy Bypass -File build.ps1
 ```
 
-输出 `release\知序.exe` 和 `Zhixu-1.3.0-Windows-x64.zip`。构建只包含程序、文档和许可证。`ZHIXU_DATA` 环境变量可指定隔离开发数据目录。
+输出 `release\知序.exe` 和 `Zhixu-1.35.0-Windows-x64.zip`。构建只包含程序、文档和许可证。`ZHIXU_DATA` 环境变量可指定隔离开发数据目录。
 
 测试：
 
@@ -82,6 +82,6 @@ npm test
 
 ## 更新与反馈
 
-当前 **1.3.0**，见 [更新记录](CHANGELOG.md)。问题请到 [Issues](https://github.com/MnVZr/zhixu/issues) 提交版本号、系统和复现步骤，避免公开上传私人数据库、备份或图片。
+当前 **1.35.0**，见 [更新记录](CHANGELOG.md)。问题请到 [Issues](https://github.com/MnVZr/zhixu/issues) 提交版本号、系统和复现步骤，避免公开上传私人数据库、备份或图片。
 
 项目采用 [MIT License](LICENSE)。第三方组件见 [THIRD_PARTY.md](THIRD_PARTY.md)。

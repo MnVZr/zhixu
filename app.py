@@ -259,12 +259,14 @@ class Handler(BaseHTTPRequestHandler):
                     WHERE i.album_id=? ORDER BY '''+order, (id,))]})
         elif p.path == '/api/history':
             with connect() as c:
-                self.reply([dict(x) for x in c.execute('''SELECT d.date,d.title,
+                self.reply([dict(x) for x in c.execute('''SELECT d.id,d.date,d.title,d.body,d.created,
                     (SELECT count(*) FROM todos t WHERE t.date=d.date) AS total,
                     (SELECT count(*) FROM todos t WHERE t.date=d.date AND t.done=1) AS done
-                    FROM (SELECT date,title FROM days UNION SELECT date,'' FROM todos WHERE date NOT IN (SELECT date FROM days)) d ORDER BY d.date DESC''')])
+                    FROM (SELECT id,date,title,body,created FROM entries UNION ALL
+                    SELECT '',date,'','','' FROM todos WHERE date NOT IN (SELECT date FROM entries) GROUP BY date) d
+                    ORDER BY d.date DESC,d.created DESC,d.id DESC''')])
         elif p.path == '/api/info':
-            self.reply({'token': TOKEN, 'data': str(DATA), 'version': '1.3.0'})
+            self.reply({'token': TOKEN, 'data': str(DATA), 'version': '1.35.0'})
         elif p.path == '/api/backup':
             buffer = io.BytesIO()
             with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as z:
@@ -316,7 +318,7 @@ class Handler(BaseHTTPRequestHandler):
                     chunk = f.read(min(left, 1024*1024))
                     if not chunk: break
                     self.wfile.write(chunk); left -= len(chunk)
-        elif p.path in ('/', '/app.js', '/style.css', '/gallery.css', '/v11.js', '/v11.css', '/v12.js', '/v12.css', '/zhixu.ico', '/v13.js', '/v13.css'):
+        elif p.path in ('/', '/app.js', '/style.css', '/gallery.css', '/v11.js', '/v11.css', '/v12.js', '/v12.css', '/zhixu.ico', '/v13.js', '/v13.css', '/v135.js', '/v135.css'):
             name = 'index.html' if p.path == '/' else p.path[1:]
             self.reply((ASSETS / name).read_bytes(), mime=('text/javascript; charset=utf-8' if name.endswith('.js') else 'text/css; charset=utf-8' if name.endswith('.css') else 'image/x-icon' if name.endswith('.ico') else 'text/html; charset=utf-8'))
         else:
@@ -448,7 +450,7 @@ def switch_storage(target,mode):
         DATA=target
         init()
         storage.remember(ROOT,target)
-        if SERVICE_URL:(DATA/'runtime.json').write_text(json.dumps({'url':SERVICE_URL,'pid':os.getpid(),'version':'1.3.0'}),encoding='utf-8')
+        if SERVICE_URL:(DATA/'runtime.json').write_text(json.dumps({'url':SERVICE_URL,'pid':os.getpid(),'version':'1.35.0'}),encoding='utf-8')
     except Exception:
         DATA=previous;guard.__exit__(None,None,None);raise
     if INSTANCE:INSTANCE.close();INSTANCE=None
@@ -467,7 +469,7 @@ def main():
     server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
     url = f'http://127.0.0.1:{server.server_port}/'
     SERVICE_URL=url
-    (DATA / 'runtime.json').write_text(json.dumps({'url': url, 'pid': os.getpid(), 'version': '1.3.0'}), encoding='utf-8')
+    (DATA / 'runtime.json').write_text(json.dumps({'url': url, 'pid': os.getpid(), 'version': '1.35.0'}), encoding='utf-8')
     threading.Thread(target=server.serve_forever, daemon=True).start()
     headless='--serve' in sys.argv
     if not headless or '--native-test' in sys.argv:

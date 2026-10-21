@@ -2,7 +2,7 @@
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 let JSDOM;try{({JSDOM}=require('jsdom'));}catch{({JSDOM}=require('../work/dom-test/node_modules/jsdom'));}
 const root=path.join(__dirname,'..');const dom=new JSDOM(fs.readFileSync(path.join(root,'web/index.html'),'utf8'),{url:'http://zhixu.test/',runScripts:'outside-only',pretendToBeVisual:true});
-const vm=require('node:vm');const run=s=>vm.runInContext(s,dom.getInternalVMContext());const w=dom.window;let entries=[],media=[],calls=[],next=0,settings={font_size:'standard',task_sort:'priority',default_priority:'normal',show_stats:true,show_inspiration:false,hide_completed:false,theme:'#2f6859'};
+const vm=require('node:vm');const run=s=>vm.runInContext(s,dom.getInternalVMContext());const w=dom.window;let entries=[],media=[],calls=[],next=0,failSettings=false,settings={rollover_enabled:false,background_enabled:true,reminder_sound:true,font_size:'standard',task_sort:'priority',default_priority:'normal',show_stats:true,show_inspiration:false,hide_completed:false,theme:'#2f6859'};
 const date=new Date().toLocaleDateString('en-CA');
 w.scrollTo=()=>{};w.HTMLElement.prototype.scrollIntoView=function(){};w.confirm=()=>true;w.document.execCommand=()=>true;w.document.queryCommandState=()=>false;w.document.queryCommandIndeterm=()=>false;w.document.queryCommandValue=()=>'';w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new w.Event('close'));};
 Object.defineProperty(w.HTMLElement.prototype,'innerText',{get(){return this.textContent;},set(v){this.textContent=v;},configurable:true});
@@ -10,7 +10,7 @@ w.HTMLMediaElement.prototype.pause=()=>{};
 const tick=()=>new Promise(r=>setTimeout(r,10));
 w.fetch=async(url,options={})=>{const u=new URL(url,'http://zhixu.test'),data=typeof options.body==='string'?JSON.parse(options.body):options.body;calls.push(u.pathname);let result={ok:true};
  if(u.pathname==='/api/info')result={token:'test',data:'test-only',version:'1.3.0'};
- if(u.pathname==='/api/history')result=[];
+ if(u.pathname==='/api/history')result=entries.map(x=>({...x}));
  if(u.pathname==='/api/library')result={categories:[],albums:[]};
  if(u.pathname==='/api/state')result={settings,categories:[],notifications:[],todos:[],server_date:date};
  if(u.pathname==='/api/storage')result={path:'D:\\test-only'};
@@ -19,16 +19,22 @@ w.fetch=async(url,options={})=>{const u=new URL(url,'http://zhixu.test'),data=ty
  if(u.pathname==='/api/entry/save'){const id=data.id||(++next).toString(16).padStart(32,'0');let row=entries.find(x=>x.id===id);if(!row){row={id,created:new Date().toISOString(),collapsed:0};entries.push(row);}Object.assign(row,data,{id});result={id};}
  if(u.pathname==='/api/entry/fold')entries.find(x=>x.id===data.id).collapsed=data.collapsed;
  if(u.pathname==='/api/upload'){const id=(++next).toString(16).padStart(32,'0');media.push({id,date,name:u.searchParams.get('name'),mime:'image/png',size:4,entry_id:u.searchParams.get('entry'),journal_visible:1,annotation:'',imported_at:new Date().toISOString()});result={id};}
- if(u.pathname==='/api/settings')Object.assign(settings,data);
+ if(u.pathname==='/api/settings'){if(failSettings){failSettings=false;return {ok:false,json:async()=>({error:'测试保存失败'})};}Object.assign(settings,data);}
  if(u.pathname==='/api/media/update')Object.assign(media.find(x=>x.id===data.id),data);
  return {ok:true,json:async()=>result};};
-for(const name of ['app.js','v11.js','v12.js','v13.js'])run(fs.readFileSync(path.join(root,'web',name),'utf8'));
+for(const name of ['app.js','v11.js','v12.js','v13.js','v135.js'])run(fs.readFileSync(path.join(root,'web',name),'utf8'));
 (async()=>{await tick();await tick();assert.notEqual(w.document.getElementById('saveState').textContent,'连接失败，请重启知序');assert.ok(w.document.getElementById('dataPath'));assert.equal(w.document.getElementById('pref_density'),null);
  await run('newEntry()');w.document.getElementById('title').value='第一篇';w.document.getElementById('editor').innerHTML='<p>第一篇正文</p>';run('changed()');await run('save()');
  await run('newEntry()');w.document.getElementById('title').value='第二篇';w.document.getElementById('editor').innerHTML='<p>第二篇正文</p>';run('changed()');await run('save()');assert.equal(entries.length,2);
+ assert.equal(w.document.querySelectorAll('#history button').length,2);w.document.getElementById('search').value='第二篇正文';run('renderHistory()');assert.equal(w.document.querySelectorAll('#history button').length,1);w.document.querySelector('#history button').click();await tick();await tick();assert.equal(run('activeEntryId'),entries[1].id);w.document.getElementById('search').value='';run('renderHistory()');
  await run('activateEntry(entryCache[0].id)');assert.equal(w.document.getElementById('title').value,'第一篇');assert.equal(w.document.querySelectorAll('.entry-preview').length,1);
  await run(`upload([new File(['data'],'sample.png',{type:'image/png'})])`);assert.equal(w.document.querySelectorAll('#editor figure img').length,1);assert.equal(entries.length,2);assert.ok(entries[0].body.includes('figure'));
  await run('openInlineMedia(dayMedia[0])');assert.ok(w.document.getElementById('mediaDialog').open);assert.equal(w.document.getElementById('mediaRename').value,'sample');assert.equal(w.document.querySelector('.viewer-meta').open,false);run('zoomMedia(.25)');assert.equal(w.document.querySelector('#mediaPreview img').style.width,'125%');
  w.document.getElementById('mediaDialog').close();await run('showSettings()');await tick();assert.equal(w.document.getElementById('settingsView').hidden,false);assert.ok(w.document.getElementById('storagePath'));assert.equal(w.document.getElementById('storagePath').value,'D:\\test-only');
+ assert.equal(run('hasSettingsChanges135()'),false);
+ const control=w.document.getElementById('pref_font_size');control.value='large';control.dispatchEvent(new w.Event('change',{bubbles:true}));w.document.getElementById('mobileGallery').click();assert.equal(w.document.getElementById('unsavedSettingsDialog').open,true);assert.equal(w.document.getElementById('settingsView').hidden,false);w.document.getElementById('settingsStay').click();assert.equal(w.document.getElementById('unsavedSettingsDialog').open,false);assert.equal(control.value,'large');
+ w.document.getElementById('mobileGallery').click();w.document.getElementById('settingsDiscard').click();await tick();assert.equal(w.document.getElementById('galleryView').hidden,false);assert.equal(settings.font_size,'standard');
+ await run('showSettings()');await tick();control.value='larger';w.document.getElementById('themeColor').value='#c4914d';w.document.getElementById('mobileGallery').click();failSettings=true;w.document.getElementById('settingsSaveLeave').click();await tick();assert.equal(w.document.getElementById('unsavedSettingsDialog').open,true);assert.ok(w.document.getElementById('unsavedSettingsError').textContent.includes('失败'));w.document.getElementById('settingsSaveLeave').click();await tick();await tick();assert.equal(w.document.getElementById('galleryView').hidden,false);assert.equal(settings.font_size,'larger');assert.equal(settings.theme,'#c4914d');assert.equal(w.document.documentElement.style.getPropertyValue('--bg'),run("palette135('#c4914d')['--bg']"));assert.notEqual(w.document.documentElement.style.getPropertyValue('--theme-sidebar'),run("palette135('#2f6859')['--theme-sidebar']"));
+ await run('showSettings()');await tick();control.value='standard';const unload=new w.Event('beforeunload',{cancelable:true});w.dispatchEvent(unload);assert.equal(unload.defaultPrevented,true);
  console.log('Offline UI checks passed: multi-entry editing, inline upload, viewer zoom, metadata collapse, settings and storage controls.');
 })().catch(e=>{console.error(e);process.exitCode=1;}).finally(()=>w.close());
