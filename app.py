@@ -462,6 +462,7 @@ def main():
     INSTANCE=desktop.instance_guard(DATA)
     if INSTANCE is None: return
     init()
+    storage.remember(ROOT,DATA)
     task_tick()
     server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
     url = f'http://127.0.0.1:{server.server_port}/'
