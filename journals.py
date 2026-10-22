@@ -4,6 +4,7 @@ from html import escape
 from html.parser import HTMLParser
 import re
 import uuid
+import json
 
 class CleanHTML(HTMLParser):
     tags={'p','div','br','b','strong','i','em','u','ul','ol','li','h2','h3','blockquote','span','figure','figcaption','img','video','a'}
@@ -66,6 +67,7 @@ def save(c,data):
 
 def sync_day(c,date):
     row=primary(c,date)
+    if not row:c.execute('DELETE FROM days WHERE date=?',(date,))
     if row:c.execute('INSERT INTO days VALUES(?,?,?,?) ON CONFLICT(date) DO UPDATE SET title=excluded.title,body=excluded.body,updated=excluded.updated',(date,row['title'],row['body'],row['updated']))
 
 def embed_legacy(entry,attachments):
@@ -80,3 +82,27 @@ def embed_legacy(entry,attachments):
             body+=f'<figure data-media-id="{id}"><video src="/files/{id}" controls preload="metadata"></video><figcaption>{caption}</figcaption></figure><p><br></p>'
         else:body+=f'<p><a href="/files/{id}?download=1">{name}</a></p>'
     return {**entry,'body':body}
+
+
+def delete(c,id):
+    row=c.execute('SELECT * FROM entries WHERE id=?',(id,)).fetchone()
+    if not row:raise ValueError('日志不存在或已删除')
+    entry=dict(row)
+    media=[dict(x) for x in c.execute('SELECT id,journal_visible,legacy_pending FROM attachments WHERE entry_id=?',(id,))]
+    payload=json.dumps({'entry':entry,'media':media},ensure_ascii=False)
+    c.execute('INSERT OR REPLACE INTO deleted_entries VALUES(?,?,?,?)',(id,entry['date'],payload,dt.datetime.now().isoformat()))
+    c.execute("UPDATE attachments SET entry_id='',journal_visible=0,legacy_pending=0 WHERE entry_id=?",(id,))
+    c.execute('DELETE FROM entries WHERE id=?',(id,))
+    sync_day(c,entry['date'])
+    return {'ok':True,'id':id,'date':entry['date']}
+
+def restore(c,id):
+    row=c.execute('SELECT payload FROM deleted_entries WHERE id=?',(id,)).fetchone()
+    if not row:raise ValueError('找不到可恢复的日志')
+    payload=json.loads(row['payload']);entry=payload['entry']
+    if c.execute('SELECT 1 FROM entries WHERE id=?',(id,)).fetchone():raise ValueError('日志已恢复')
+    c.execute('INSERT INTO entries VALUES(?,?,?,?,?,?,?)',tuple(entry[k] for k in ('id','date','title','body','collapsed','created','updated')))
+    for item in payload['media']:
+        c.execute("UPDATE attachments SET entry_id=?,journal_visible=?,legacy_pending=? WHERE id=? AND entry_id=''",(id,item['journal_visible'],item['legacy_pending'],item['id']))
+    c.execute('DELETE FROM deleted_entries WHERE id=?',(id,));sync_day(c,entry['date'])
+    return {'ok':True,'id':id,'date':entry['date']}

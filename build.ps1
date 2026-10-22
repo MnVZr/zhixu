@@ -10,3 +10,9 @@ Copy-Item -LiteralPath 'work\package\知序.exe' -Destination 'release\知序.ex
 Copy-Item -LiteralPath README.md -Destination 'release\使用说明.md' -Force
 python package_release.py
 if ($LASTEXITCODE -ne 0) { throw '发布包校验失败' }
+
+python -m PyInstaller --noconfirm --clean --onefile --windowed --name 'Zhixu-1.5.0-Setup' --icon 'web\zhixu.ico' --version-file version_info.txt --add-data 'Zhixu-1.5.0-Windows-x64.zip;.' --distpath work\setup-package --workpath work\setup-build installer.py
+if ($LASTEXITCODE -ne 0) { throw '安装程序打包失败' }
+Copy-Item -LiteralPath 'work\setup-package\Zhixu-1.5.0-Setup.exe' -Destination 'Zhixu-1.5.0-Setup.exe' -Force
+python -c "from pathlib import Path; import hashlib; p=Path('Zhixu-1.5.0-Setup.exe'); f=Path('SHA256SUMS.txt'); f.write_text(f.read_text(encoding='ascii')+hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+'\n',encoding='ascii')"
+if ($LASTEXITCODE -ne 0) { throw '安装包校验失败' }

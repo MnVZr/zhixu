@@ -91,7 +91,7 @@ class Version13Tests(unittest.TestCase):
             c.execute('INSERT INTO days VALUES(?,?,?,?)',('2026-10-20','旧标题','<p>旧内容</p>',None));c.execute('INSERT INTO attachments VALUES(?,?,?,?,?)',(id,'2026-10-20','old.png','image/png',11));c.commit()
         self.api('/api/storage/change',{'mode':'open','path':str(legacy)})
         row=self.api('/api/entries?date=2026-10-20')['entries'][0];self.assertEqual(row['title'],'旧标题');self.assertIn(id,row['body']);self.assertIn('旧内容',row['body'])
-        self.assertTrue(list((legacy/'upgrade-backups').glob('before-1.45-*.db')))
+        self.assertTrue(list((legacy/'upgrade-backups').glob('before-1.5-*.db')))
         buffer=io.BytesIO()
         with zipfile.ZipFile(buffer,'w') as z:z.writestr('data/../../outside.txt','no')
         with self.assertRaises(urllib.error.HTTPError):self.api('/api/restore',buffer.getvalue())

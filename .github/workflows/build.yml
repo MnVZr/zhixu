@@ -28,4 +28,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: Zhixu-Windows-x64
-          path: Zhixu-*-Windows-x64.zip
+          path: |
+            Zhixu-*-Windows-x64.zip
+            Zhixu-*-Setup.exe
+            SHA256SUMS.txt

@@ -152,7 +152,7 @@ class JournalTests(unittest.TestCase):
                 with app.connect() as c:
                     self.assertEqual(c.execute('SELECT body FROM days').fetchone()[0],'<b>旧内容</b>')
                     self.assertEqual(c.execute('SELECT journal_visible FROM attachments').fetchone()[0],1)
-                    self.assertEqual(c.execute('PRAGMA user_version').fetchone()[0],5)
+                    self.assertEqual(c.execute('PRAGMA user_version').fetchone()[0],6)
                 self.assertEqual(len(list((app.DATA/'upgrade-backups').glob('*.db'))),1)
             finally: app.DATA=old
 
@@ -252,7 +252,8 @@ class TaskEngineTests(unittest.TestCase):
             releases.append_updates(c);releases.append_updates(c)
             row=c.execute("SELECT * FROM days WHERE date='2026-10-21'").fetchone()
             self.assertEqual(row['title'],'我的日志');self.assertTrue(row['body'].startswith('<p>保留原文</p>'))
-            self.assertEqual(row['body'].count('知序版本归档 · 1.0'),1);self.assertEqual(row['body'].count('知序版本归档 · 1.1'),1)
+            archive=c.execute("SELECT body FROM entries WHERE date='2026-10-21' AND title='知序 · 版本更新归档'").fetchone()[0]
+            self.assertEqual(row['body'],'<p>保留原文</p>');self.assertEqual(archive.count('知序版本归档 · 1.0'),1);self.assertEqual(archive.count('知序版本归档 · 1.1'),1)
             self.assertIn('Demo',c.execute("SELECT body FROM days WHERE date='2026-10-20'").fetchone()[0])
 
 if __name__ == '__main__':

@@ -20,22 +20,29 @@ NOTES['2026-10-21'].append(('知序版本归档 · 1.4','<p>新增右下角闹�
 
 NOTES['2026-10-21'].append(('知序版本归档 · 1.45','<p>番茄钟支持拖动、记忆位置、方向键移动和按钮避让。相册支持多图注、点击图片定位添加、悬浮编辑样式与等比例缩放，预览显示日期和大小；顶部重命名、两侧翻页、查看对应日志、设置相册封面。日志插图可隐藏图注，双击查看完整信息。数据与导出按保存位置、备份恢复和单独导出整理。统计改为当日日志篇数，并支持可选的手动心情、天气记录。增量迁移保留旧图注和个人数据。</p>'))
 
+NOTES['2026-10-22']=[('知序版本归档 · 1.5','<p>番茄钟恢复默认右下角，整个图标可手动拖动并记住位置，移除自动避让与六点手柄。心情和天气默认展示，新增太阳、云、笑脸和哭脸等线条图标，移除相关设置。相册预览顶部压缩为一行图标工具栏，卡片默认仅显示名称，悬停或键盘聚焦查看详情。日志插图默认隐藏图注，双击查看完整图注。新增可关闭的新手指南、日志删除确认和撤销，保留相册媒体。新增可勾选桌面快捷方式的 Windows 安装向导，便携版首次启动也可创建。升级前备份，保留原有个人数据。</p>')]
+
 def append_updates(c):
+    if c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='entries'").fetchone():
+        import journals
+        journals.migrate(c)
     for date,sections in NOTES.items():
         has_entries=c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='entries'").fetchone()
-        target=c.execute('SELECT id,title,body FROM entries WHERE date=? AND title=? ORDER BY created,id LIMIT 1',(date,'知序 · 版本更新归档')).fetchone() if has_entries else None
-        row=target or c.execute('SELECT title,body FROM days WHERE date=?',(date,)).fetchone()
-        title=row['title'] if row and row['title'] else '知序 · 版本更新归档'
-        body=row['body'] if row else ''
-        for heading,text in sections:
-            if heading not in body:
-                body+=('<p><br></p>' if body else '')+'<h3>'+heading+'</h3>'+text
-        if c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='entries'").fetchone():
-            first=target or c.execute('SELECT id FROM entries WHERE date=? ORDER BY created,id LIMIT 1',(date,)).fetchone()
-            if first:c.execute('UPDATE entries SET title=?,body=?,updated=? WHERE id=?',(title,body,dt.datetime.now().isoformat(),first['id']))
-        c.execute('INSERT INTO days(date,title,body,updated) VALUES(?,?,?,?) ON CONFLICT(date) DO UPDATE SET title=excluded.title,body=excluded.body,updated=excluded.updated',
-                  (date,title,body,dt.datetime.now().isoformat()))
         if has_entries:
             import journals
+            target=c.execute('SELECT id,title,body FROM entries WHERE date=? AND title=? ORDER BY created,id LIMIT 1',(date,'知序 · 版本更新归档')).fetchone()
+            if not target:
+                id=journals.save(c,{'date':date,'title':'知序 · 版本更新归档','body':''})
+                target=c.execute('SELECT id,title,body FROM entries WHERE id=?',(id,)).fetchone()
+            body=target['body']
+        else:
+            target=c.execute('SELECT title,body FROM days WHERE date=?',(date,)).fetchone()
+            body=target['body'] if target else ''
+        for heading,text in sections:
+            if '<h3>'+heading+'</h3>' not in body:
+                body+=('<p><br></p>' if body else '')+'<h3>'+heading+'</h3>'+text
+        if has_entries:
+            c.execute('UPDATE entries SET body=?,updated=? WHERE id=?',(body,dt.datetime.now().isoformat(),target['id']))
             journals.sync_day(c,date)
-
+        else:
+            c.execute('INSERT INTO days(date,title,body,updated) VALUES(?,?,?,?) ON CONFLICT(date) DO UPDATE SET title=excluded.title,body=excluded.body,updated=excluded.updated',(date,(target['title'] if target and target['title'] else '知序 · 版本更新归档'),body,dt.datetime.now().isoformat()))

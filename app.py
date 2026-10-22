@@ -23,6 +23,7 @@ import storage
 import journals
 import pomodoro
 import annotations
+import install_support
 
 ROOT = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
 ASSETS = Path(getattr(sys, '_MEIPASS', ROOT)) / 'web'
@@ -61,9 +62,9 @@ def init():
     # SQLite's backup API keeps existing journals intact before upgrading the schema.
     if (DATA / 'journal.db').exists():
         with connect() as c:
-            if c.execute('PRAGMA user_version').fetchone()[0] < 5:
+            if c.execute('PRAGMA user_version').fetchone()[0] < 6:
                 folder = DATA / 'upgrade-backups'; folder.mkdir(exist_ok=True)
-                destination = sqlite3.connect(folder / ('before-1.45-' + dt.datetime.now().strftime('%Y%m%d-%H%M%S-%f') + '.db'))
+                destination = sqlite3.connect(folder / ('before-1.5-' + dt.datetime.now().strftime('%Y%m%d-%H%M%S-%f') + '.db'))
                 try: c.backup(destination)
                 finally: destination.close()
     with connect() as c:
@@ -91,7 +92,11 @@ def init():
         if 'caption_style' not in {x['name'] for x in c.execute('PRAGMA table_info(attachments)')}:c.execute("ALTER TABLE attachments ADD COLUMN caption_style TEXT NOT NULL DEFAULT '{}'")
         pomodoro.migrate(c)
         annotations.migrate(c)
-        c.execute('PRAGMA user_version=5')
+        c.execute('CREATE TABLE IF NOT EXISTS deleted_entries(id TEXT PRIMARY KEY,date TEXT NOT NULL,payload TEXT NOT NULL,deleted_at TEXT NOT NULL)')
+        if tasks.value(c,'welcome_completed',None) is None:
+            existing=c.execute('SELECT 1 FROM entries LIMIT 1').fetchone() or c.execute('SELECT 1 FROM todos LIMIT 1').fetchone()
+            tasks.put(c,'welcome_completed',bool(existing))
+        c.execute('PRAGMA user_version=6')
 
 def task_tick(now=None):
     with connect() as c:
@@ -256,8 +261,10 @@ class Handler(BaseHTTPRequestHandler):
     def get_locked(self):
         p = urlparse(self.path)
         q = parse_qs(p.query)
-        if p.path == '/api/ui-state':
-            with connect() as c:self.reply({'position':tasks.value(c,'clock_position',None)})
+        if p.path == '/api/welcome':
+            with connect() as c:self.reply({'completed':tasks.value(c,'welcome_completed',True)})
+        elif p.path == '/api/ui-state':
+            with connect() as c:self.reply({'position':tasks.value(c,'clock_position',None),'layout':tasks.value(c,'clock_layout','')})
         elif p.path == '/api/day-context':
             date=q.get('date',[''])[0];dt.date.fromisoformat(date)
             with connect() as c:
@@ -266,7 +273,7 @@ class Handler(BaseHTTPRequestHandler):
         elif p.path == '/api/pomodoro':
             with connect() as c:self.reply(pomodoro.status(c))
         elif p.path == '/api/storage':
-            self.reply({'path':str(DATA),'version':5})
+            self.reply({'path':str(DATA),'version':6})
         elif p.path == '/api/export':
             kind=q.get('kind',['journals'])[0]
             with connect() as c: payload=storage.export(c,DATA,kind)
@@ -316,7 +323,7 @@ class Handler(BaseHTTPRequestHandler):
                     SELECT '',date,'','','' FROM todos WHERE date NOT IN (SELECT date FROM entries) GROUP BY date) d
                     ORDER BY d.date DESC,d.created DESC,d.id DESC''')])
         elif p.path == '/api/info':
-            self.reply({'token': TOKEN, 'data': str(DATA), 'version': '1.45.0'})
+            self.reply({'token': TOKEN, 'data': str(DATA), 'version': '1.5.0'})
         elif p.path == '/api/backup':
             buffer = io.BytesIO()
             with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as z:
@@ -368,7 +375,7 @@ class Handler(BaseHTTPRequestHandler):
                     chunk = f.read(min(left, 1024*1024))
                     if not chunk: break
                     self.wfile.write(chunk); left -= len(chunk)
-        elif p.path in ('/', '/app.js', '/style.css', '/gallery.css', '/v11.js', '/v11.css', '/v12.js', '/v12.css', '/zhixu.ico', '/v13.js', '/v13.css', '/v135.js', '/v135.css', '/v14.js', '/v145.js', '/v14.css', '/v145.css'):
+        elif p.path in ('/', '/app.js', '/style.css', '/gallery.css', '/v11.js', '/v11.css', '/v12.js', '/v12.css', '/zhixu.ico', '/v13.js', '/v13.css', '/v135.js', '/v135.css', '/v14.js', '/v145.js', '/v15.js', '/v14.css', '/v145.css', '/v15.css'):
             name = 'index.html' if p.path == '/' else p.path[1:]
             self.reply((ASSETS / name).read_bytes(), mime=('text/javascript; charset=utf-8' if name.endswith('.js') else 'text/css; charset=utf-8' if name.endswith('.css') else 'image/x-icon' if name.endswith('.ico') else 'text/html; charset=utf-8'))
         else:
@@ -447,10 +454,21 @@ class Handler(BaseHTTPRequestHandler):
                     # Commit before sending the response: subsequent UI requests see the change.
                     c.commit()
                     return self.reply(result)
-                if p.path == '/api/ui-state':
+                if p.path == '/api/welcome':
+                    if not isinstance(data.get('completed'),bool):raise ValueError('无效指南选项')
+                    tasks.put(c,'welcome_completed',data['completed']);c.commit();return self.reply({'ok':True})
+                elif p.path == '/api/desktop-shortcut':
+                    target=Path(sys.executable) if getattr(sys,'frozen',False) else ROOT/'release'/'知序.exe'
+                    location=install_support.create_shortcut(target)
+                    return self.reply({'ok':True,'path':str(location)})
+                elif p.path == '/api/entry/delete':
+                    result=journals.delete(c,data['id']);c.commit();return self.reply(result)
+                elif p.path == '/api/entry/restore':
+                    result=journals.restore(c,data['id']);c.commit();return self.reply(result)
+                elif p.path == '/api/ui-state':
                     pos=data.get('position')
                     if not isinstance(pos,dict) or any(not isinstance(pos.get(k),(int,float)) or not 0<=pos[k]<=1 for k in ('x','y')):raise ValueError('位置无效')
-                    tasks.put(c,'clock_position',{k:pos[k] for k in ('x','y')});c.commit();self.reply({'ok':True});return
+                    tasks.put(c,'clock_position',{k:pos[k] for k in ('x','y')});tasks.put(c,'clock_layout',data.get('layout',''));c.commit();self.reply({'ok':True});return
                 elif p.path == '/api/day-context':
                     date=data['date'];dt.date.fromisoformat(date)
                     mood=data.get('mood','');weather=data.get('weather','')
@@ -511,7 +529,7 @@ def switch_storage(target,mode):
         DATA=target
         init()
         storage.remember(ROOT,target)
-        if SERVICE_URL:(DATA/'runtime.json').write_text(json.dumps({'url':SERVICE_URL,'pid':os.getpid(),'version':'1.45.0'}),encoding='utf-8')
+        if SERVICE_URL:(DATA/'runtime.json').write_text(json.dumps({'url':SERVICE_URL,'pid':os.getpid(),'version':'1.5.0'}),encoding='utf-8')
     except Exception:
         DATA=previous;guard.__exit__(None,None,None);raise
     if INSTANCE:INSTANCE.close();INSTANCE=None
@@ -530,7 +548,7 @@ def main():
     server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
     url = f'http://127.0.0.1:{server.server_port}/'
     SERVICE_URL=url
-    (DATA / 'runtime.json').write_text(json.dumps({'url': url, 'pid': os.getpid(), 'version': '1.45.0'}), encoding='utf-8')
+    (DATA / 'runtime.json').write_text(json.dumps({'url': url, 'pid': os.getpid(), 'version': '1.5.0'}), encoding='utf-8')
     threading.Thread(target=server.serve_forever, daemon=True).start()
     headless='--serve' in sys.argv
     if not headless or '--native-test' in sys.argv:
